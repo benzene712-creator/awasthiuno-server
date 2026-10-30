@@ -23,6 +23,9 @@ app.get("/", (req, res) => {
 app.get("/health", (req, res) => {
   res.json({ status: "online", rooms: rooms.size });
 });
+app.get("/test", (req, res) => {
+  res.sendFile(__dirname + "/test.html");
+});
 
 function makeRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
