@@ -11,6 +11,13 @@ const io = new Server(server, {
 });
 
 const rooms = new Map();
+function reply(callback, response) {
+  if (typeof callback === "function") {
+    callback(response);
+  } else {
+    console.warn("No valid acknowledgement callback received.");
+  }
+}
 
 app.get("/", (req, res) => {
   res.send("AwasthiUNO multiplayer server is running!");
@@ -225,11 +232,11 @@ io.on("connection", socket => {
     const name = cleanName(data?.name);
 
     if (!name) {
-      return callback?.({ ok: false, error: "Enter a player name." });
+      return reply(callback, { ok: false, error: "Enter a player name." });
     }
 
     if (socket.data.roomCode) {
-      return callback?.({ ok: false, error: "Leave your current room first." });
+      return reply(callback, { ok: false, error: "Leave your current room first." });
     }
 
     const code = makeRoomCode();
@@ -245,7 +252,7 @@ io.on("connection", socket => {
     socket.join(code);
     socket.data.roomCode = code;
 
-    callback?.({ ok: true, room: getRoomInfo(room) });
+    reply(callback, { ok: true, room: getRoomInfo(room) });
     updateRoom(room);
   });
 
@@ -254,32 +261,32 @@ io.on("connection", socket => {
     const code = String(data?.code || "").trim().toUpperCase();
 
     if (!name) {
-      return callback?.({ ok: false, error: "Enter a player name." });
+      return reply(callback, { ok: false, error: "Enter a player name." });
     }
 
     if (socket.data.roomCode) {
-      return callback?.({ ok: false, error: "Leave your current room first." });
+      return reply(callback, { ok: false, error: "Leave your current room first." });
     }
 
     const room = rooms.get(code);
 
     if (!room) {
-      return callback?.({ ok: false, error: "Room not found. Check the code." });
+      return reply(callback, { ok: false, error: "Room not found. Check the code." });
     }
 
     if (room.started) {
-      return callback?.({ ok: false, error: "This game has already started." });
+      return reply(callback, { ok: false, error: "This game has already started." });
     }
 
     if (room.players.length >= 4) {
-      return callback?.({ ok: false, error: "This room is full." });
+      return reply(callback, { ok: false, error: "This room is full." });
     }
 
     room.players.push({ id: socket.id, name });
     socket.join(code);
     socket.data.roomCode = code;
 
-    callback?.({ ok: true, room: getRoomInfo(room) });
+    reply(callback, { ok: true, room: getRoomInfo(room) });
     updateRoom(room);
   });
 
@@ -287,23 +294,23 @@ io.on("connection", socket => {
     const room = rooms.get(socket.data.roomCode);
 
     if (!room) {
-      return callback?.({ ok: false, error: "Room not found." });
+      return reply(callback, { ok: false, error: "Room not found." });
     }
 
     if (room.hostId !== socket.id) {
-      return callback?.({ ok: false, error: "Only the host can start." });
+      return reply(callback, { ok: false, error: "Only the host can start." });
     }
 
     if (room.players.length < 2) {
-      return callback?.({ ok: false, error: "At least 2 players are required." });
+      return reply(callback, { ok: false, error: "At least 2 players are required." });
     }
 
     if (room.started) {
-      return callback?.({ ok: false, error: "Game already started." });
+      return reply(callback, { ok: false, error: "Game already started." });
     }
 
     startUnoGame(room);
-    callback?.({ ok: true });
+    reply(callback, { ok: true });
   });
 
   socket.on("play_card", (data, callback) => {
@@ -311,18 +318,18 @@ io.on("connection", socket => {
     const game = room?.game;
 
     if (!game || game.gameOver) {
-      return callback?.({ ok: false, error: "No active game." });
+      return reply(callback, { ok: false, error: "No active game." });
     }
 
     if (game.players[game.turn] !== socket.id) {
-      return callback?.({ ok: false, error: "It's not your turn." });
+      return reply(callback, { ok: false, error: "It's not your turn." });
     }
 
     const hand = game.hands[socket.id];
     const cardIndex = hand.findIndex(c => c.id === String(data?.cardId));
 
     if (cardIndex < 0) {
-      return callback?.({ ok: false, error: "Card not found in your hand." });
+      return reply(callback, { ok: false, error: "Card not found in your hand." });
     }
 
     const card = hand[cardIndex];
@@ -336,12 +343,12 @@ io.on("connection", socket => {
         card.value === top.value);
 
     if (!playable) {
-      return callback?.({ ok: false, error: "You cannot play that card." });
+      return reply(callback, { ok: false, error: "You cannot play that card." });
     }
 
     if (card.color === "WILD" &&
         !["RED", "BLUE", "GREEN", "YELLOW"].includes(data?.chosenColor)) {
-      return callback?.({ ok: false, error: "Choose a valid colour." });
+      return reply(callback, { ok: false, error: "Choose a valid colour." });
     }
 
     hand.splice(cardIndex, 1);
@@ -381,7 +388,7 @@ io.on("connection", socket => {
       game.message = "Card played!";
     }
 
-    callback?.({ ok: true });
+    reply(callback, { ok: true });
     sendGameState(room);
   });
 
@@ -390,11 +397,11 @@ io.on("connection", socket => {
     const game = room?.game;
 
     if (!game || game.gameOver) {
-      return callback?.({ ok: false, error: "No active game." });
+      return reply(callback, { ok: false, error: "No active game." });
     }
 
     if (game.players[game.turn] !== socket.id) {
-      return callback?.({ ok: false, error: "It's not your turn." });
+      return reply(callback, { ok: false, error: "It's not your turn." });
     }
 
     const card = drawOne(game);
@@ -403,7 +410,7 @@ io.on("connection", socket => {
     nextPlayer(game);
     game.message = "A card was drawn.";
 
-    callback?.({ ok: true });
+    reply(callback, { ok: true });
     sendGameState(room);
   });
 
@@ -412,18 +419,18 @@ io.on("connection", socket => {
     const game = room?.game;
 
     if (!game || game.gameOver || !game.hands[socket.id]) {
-      return callback?.({ ok: false, error: "No active game." });
+      return reply(callback, { ok: false, error: "No active game." });
     }
 
     if (game.hands[socket.id].length !== 1) {
-      return callback?.({ ok: false, error: "You can call UNO with one card left." });
+      return reply(callback, { ok: false, error: "You can call UNO with one card left." });
     }
 
     game.message = "UNO! " +
       (room.players.find(p => p.id === socket.id)?.name || "A player") +
       " has one card left.";
 
-    callback?.({ ok: true });
+    reply(callback, { ok: true });
     sendGameState(room);
   });
 
@@ -431,7 +438,7 @@ io.on("connection", socket => {
     const code = socket.data.roomCode;
     removePlayer(socket);
     if (code) socket.leave(code);
-    callback?.({ ok: true });
+    reply(callback, { ok: true });
   });
 
   socket.on("disconnect", () => {
