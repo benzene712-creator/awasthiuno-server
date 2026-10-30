@@ -1,0 +1,142 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AwasthiUNO Online Test</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body {
+      background: #101522;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 30px 15px;
+    }
+    .panel {
+      max-width: 420px;
+      margin: 20px auto;
+      padding: 24px;
+      background: #202a3b;
+      border-radius: 16px;
+    }
+    input, button {
+      width: 90%;
+      padding: 13px;
+      margin: 8px;
+      border: 0;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    button {
+      background: #e8b936;
+      color: #111;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #status { color: #8ee6a1; }
+    #players { line-height: 2; }
+  </style>
+</head>
+<body>
+  <h1>🎴 AwasthiUNO</h1>
+  <p>Online Multiplayer Test</p>
+
+  <div class="panel">
+    <input id="name" placeholder="Enter your player name" maxlength="16">
+    <button onclick="createRoom()">Create Room</button>
+    <hr>
+    <input id="code" placeholder="Enter 6-character room code"
+           maxlength="6">
+    <button onclick="joinRoom()">Join Room</button>
+  </div>
+
+  <div class="panel">
+    <h2>Online Lobby</h2>
+    <h1 id="roomCode">------</h1>
+    <p id="status">Connecting...</p>
+    <div id="players">No players yet</div>
+    <button onclick="startGame()">Start Game</button>
+  </div>
+
+  <script>
+    const socket = io();
+    let currentRoom = null;
+
+    socket.on("connect", () => {
+      document.getElementById("status").textContent =
+        "Connected to AwasthiUNO server!";
+    });
+
+    socket.on("disconnect", () => {
+      document.getElementById("status").textContent =
+        "Disconnected from server";
+    });
+
+    function showError(message) {
+      document.getElementById("status").textContent = message;
+    }
+
+    function getName() {
+      return document.getElementById("name").value.trim();
+    }
+
+    function createRoom() {
+      socket.emit("create_room", { name: getName() }, result => {
+        if (!result.ok) return showError(result.error);
+        currentRoom = result.room.code;
+        showRoom(result.room);
+      });
+    }
+
+    function joinRoom() {
+      const code = document.getElementById("code").value.trim();
+
+      socket.emit("join_room", {
+        name: getName(),
+        code: code
+      }, result => {
+        if (!result.ok) return showError(result.error);
+        currentRoom = result.room.code;
+        showRoom(result.room);
+      });
+    }
+
+    socket.on("room_update", room => {
+      showRoom(room);
+    });
+
+    function showRoom(room) {
+      currentRoom = room.code;
+      document.getElementById("roomCode").textContent = room.code;
+      document.getElementById("status").textContent =
+        "Room connected! " + room.players.length + "/4 players";
+
+      document.getElementById("players").innerHTML =
+        room.players.map(p =>
+          "<p>" + escapeHTML(p.name) +
+          (p.isHost ? " (Host)" : "") + "</p>"
+        ).join("");
+    }
+
+    function escapeHTML(value) {
+      return value.replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;",
+        '"': "&quot;", "'": "&#39;"
+      })[char]);
+    }
+
+    function startGame() {
+      socket.emit("start_game", result => {
+        if (!result.ok) return showError(result.error);
+        showError("Game started! Multiplayer lobby test passed.");
+      });
+    }
+
+    socket.on("game_started", () => {
+      showError("Game started successfully!");
+    });
+  </script>
+</body>
+</html>
